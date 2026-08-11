@@ -16,8 +16,8 @@
     --text-faint: #5c6370;
     --green: #22c55e;
     --green-dim: rgba(34,197,94,.15);
-    --yellow: #f59e0b;
-    --yellow-dim: rgba(245,158,11,.15);
+    --yellow: #eab308;
+    --yellow-dim: rgba(234,179,8,.15);
     --red: #ef4444;
     --red-dim: rgba(239,68,68,.15);
     --gray: #3a3f4b;
@@ -29,7 +29,7 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, sans-serif;
     line-height: 1.5; -webkit-font-smoothing: antialiased;
   }
-  .container { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+  .container { max-width: 920px; margin: 0 auto; padding: 0 20px; }
 
   header { padding: 28px 0 8px; }
   .brand { display:flex; align-items:center; gap:12px; }
@@ -51,9 +51,9 @@
   .banner.operational { background: var(--green-dim); color:#4ade80; border-color: rgba(34,197,94,.25); }
   .banner.operational .dot { background:var(--green); box-shadow:0 0 10px rgba(34,197,94,.7); }
   .banner.degraded_performance { background: var(--yellow-dim); color:#fbbf24; border-color: rgba(245,158,11,.25); }
-  .banner.degraded_performance .dot { background:var(--yellow); box-shadow:0 0 10px rgba(245,158,11,.7); }
+  .banner.degraded_performance .dot { background:var(--yellow); box-shadow:0 0 10px rgba(234,179,8,.7); }
   .banner.partial_outage { background: var(--yellow-dim); color:#fbbf24; border-color: rgba(245,158,11,.25); }
-  .banner.partial_outage .dot { background:var(--yellow); box-shadow:0 0 10px rgba(245,158,11,.7); }
+  .banner.partial_outage .dot { background:var(--yellow); box-shadow:0 0 10px rgba(234,179,8,.7); }
   .banner.major_outage { background: var(--red-dim); color:#f87171; border-color: rgba(239,68,68,.25); }
   .banner.major_outage .dot { background:var(--red); box-shadow:0 0 10px rgba(239,68,68,.7); animation:pulse 1.2s infinite; }
   .banner .sub { font-weight:400; color:var(--text-dim); font-size:13px; margin-left:auto; }
@@ -66,8 +66,16 @@
   .stat .v.g { color:#4ade80; } .stat .v.y { color:#fbbf24; }
 
   section { margin-top:28px; }
-  .sec-title { font-size:13px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; display:flex; justify-content:space-between; align-items:baseline; }
+  .sec-title { font-size:13px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
   .sec-title .hint { font-weight:400; text-transform:none; letter-spacing:0; font-size:12px; color:var(--text-faint); }
+
+  .range-switch { display:inline-flex; background:var(--bg-card); border:1px solid var(--border); border-radius:99px; padding:3px; gap:2px; }
+  .range-switch button {
+    border:none; background:transparent; color:var(--text-dim); font-size:12px; font-weight:600;
+    padding:5px 14px; border-radius:99px; cursor:pointer; transition:all .15s;
+  }
+  .range-switch button:hover { color:var(--text); }
+  .range-switch button.active { background:var(--accent); color:#fff; }
 
   .vendor { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; margin-bottom:14px; overflow:hidden; }
   .vendor-head {
@@ -83,20 +91,35 @@
   .vendor-body { display:none; border-top:1px solid var(--border); }
   .vendor.open .vendor-body { display:block; }
 
-  .mrow { display:flex; align-items:center; gap:12px; padding:11px 18px; border-bottom:1px solid var(--border); }
+  /* DeepSeek 风格行: 顶行信息 + 下方 5 分钟格子条 */
+  .mrow { padding:12px 18px 13px; border-bottom:1px solid var(--border); }
   .mrow:last-child { border-bottom:none; }
-  .mrow .mname { width:190px; font-size:13.5px; font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .mrow .meta { font-size:11.5px; color:var(--text-faint); width:130px; flex-shrink:0; }
-  .mrow .bars { flex:1; display:flex; gap:2px; align-items:flex-end; height:26px; }
-  .mrow .bars .b { flex:1; min-width:2px; height:26px; border-radius:2px; background:var(--green); opacity:.85; transition:opacity .15s; cursor:default; }
-  .mrow .bars .b:hover { opacity:1; }
-  .mrow .bars .b.partial { background:var(--yellow); }
-  .mrow .bars .b.bad { background:var(--red); }
-  .mrow .bars .b.none { background:var(--gray); opacity:.5; }
-  .mrow .pct { width:56px; text-align:right; font-size:12.5px; font-weight:600; flex-shrink:0; }
-  .mrow .lat { width:72px; text-align:right; font-size:12px; color:var(--text-dim); flex-shrink:0; }
-  .mrow .sdot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .mrow-top { display:flex; align-items:center; gap:10px; margin-bottom:9px; }
+  .mrow-top .sdot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
   .sdot.up { background:var(--green); } .sdot.degraded { background:var(--yellow); } .sdot.down { background:var(--red); animation:pulse 1.2s infinite; }
+  .mrow-top .mname { font-size:13.5px; font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mrow-top .meta { font-size:11.5px; color:var(--text-faint); flex-shrink:0; }
+  .mrow-top .spacer { flex:1; }
+  .mrow-top .lat { font-size:12px; color:var(--text-dim); flex-shrink:0; }
+  .mrow-top .pct { font-size:13px; font-weight:700; flex-shrink:0; }
+
+  /* 格子条: 5 分钟/格 */
+  .cells { display:flex; gap:1px; height:18px; overflow-x:auto; scrollbar-width:thin; scrollbar-color: var(--border) transparent; }
+  .cells::-webkit-scrollbar { height:5px; }
+  .cells::-webkit-scrollbar-thumb { background:var(--border); border-radius:99px; }
+  .cell { flex-shrink:0; height:16px; border-radius:2px; background:var(--gray); opacity:.85; transition:opacity .15s; cursor:default; }
+  .cell:hover { opacity:1; }
+  .cell.up { background:var(--green); }
+  .cell.degraded { background:var(--yellow); }
+  .cell.down { background:var(--red); }
+
+  /* 7 天视图: 固定宽滚动 (2016 格) */
+  .cells.scroll-cells .cell { width:3px; }
+  /* 24h / 90d 视图: 自适应填充 */
+  .cells.flex-cells { overflow-x:hidden; }
+  .cells.flex-cells .cell { flex:1 1 0; min-width:1px; width:auto; }
+  /* 数据不足时左侧透明占位, 格子从右往左堆积 */
+  .cells.flex-cells .pad { flex:1 1 0; min-width:1px; background:transparent; }
 
   .st-badge { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; padding:3px 10px; border-radius:99px; }
   .st-badge.up { background:var(--green-dim); color:#4ade80; }
@@ -118,9 +141,7 @@
   #loading { text-align:center; padding:80px 0; color:var(--text-faint); }
   @media (max-width:640px) {
     .stats { grid-template-columns:repeat(2,1fr); }
-    .mrow .meta { display:none; }
-    .mrow .mname { width:140px; }
-    .mrow .lat { display:none; }
+    .mrow-top .meta { display:none; }
   }
 </style>
 </head>
@@ -145,7 +166,14 @@
   </header>
 
   <section>
-    <div class="sec-title">组件状态<span class="hint">90 天可用性 · 每 5 分钟探测 · 点按展开</span></div>
+    <div class="sec-title">
+      <span>组件状态<span class="hint" id="range-hint"></span></span>
+      <span class="range-switch">
+        <button data-range="24h">24 小时</button>
+        <button data-range="7d">7 天</button>
+        <button data-range="90d">90 天</button>
+      </span>
+    </div>
     <div id="vendors"></div>
   </section>
 
@@ -180,6 +208,14 @@ const OVERALL_TEXT = {
   major_outage: "重大服务中断",
 };
 const STATUS_TEXT = { up: "运行正常", degraded: "性能下降", down: "服务中断" };
+const RANGE_INFO = {
+  "24h": "最近 24 小时 · 每 5 分钟一格",
+  "7d": "最近 7 天 · 每 5 分钟一格",
+  "90d": "最近 90 天 · 按天聚合",
+};
+
+let currentRange = "24h";
+let cached = null; // 最近一次完整数据
 
 function fmtMs(ms) {
   if (ms == null) return "–";
@@ -188,6 +224,11 @@ function fmtMs(ms) {
 function fmtTime(ts) {
   const d = new Date(ts * 1000);
   return d.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+function fmtSlotTs(ts) {
+  const d = new Date(ts * 1000);
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 function fmtDur(sec) {
   const m = Math.floor(sec / 60);
@@ -203,30 +244,52 @@ function vendorOf(model) {
   return "其他";
 }
 
-function barClass(u) {
-  if (u == null) return "none";
-  if (u >= 0.995) return "";
-  if (u >= 0.95) return "partial";
-  return "bad";
-}
-function barColor(u) {
-  if (u == null) return "var(--gray)";
-  if (u >= 0.995) return "var(--green)";
-  if (u >= 0.95) return "var(--yellow)";
-  return "var(--red)";
+// ---------- 5-minute slot cells ----------
+// slots: { "2026-08-12": { "07:25": { model: {s, ttfb, err} } } }
+// → sorted [{ ts, hm, e }] for one model, newest last
+function slotCells(slots, model, maxCells) {
+  const cells = [];
+  const days = Object.keys(slots).sort();
+  for (const dk of days) {
+    const hms = Object.keys(slots[dk]).sort();
+    for (const hm of hms) {
+      const e = (slots[dk][hm] || {})[model];
+      cells.push({ ts: Math.floor(Date.parse(dk + "T" + hm + ":00Z") / 1000), hm, e: e || null });
+    }
+  }
+  return cells.slice(-maxCells);
 }
 
-function modelBars(history, model) {
-  // last 90 days, oldest first
-  const days = history && history.days ? Object.keys(history.days).sort() : [];
-  const last90 = days.slice(-90);
-  const out = [];
-  for (const dk of last90) {
-    const e = (history.days[dk] || {})[model];
-    if (!e || !e.t) { out.push({ d: dk, u: null, lat: null }); continue; }
-    out.push({ d: dk, u: e.ok / e.t, lat: e.t ? Math.round(e.lat / Math.max(e.ok, 1)) : null });
+function cellClass(e) {
+  if (!e || !e.s) return "";
+  if (e.s === "up") return "up";
+  if (e.s === "degraded") return "degraded";
+  return "down";
+}
+function cellTip(cell, model) {
+  if (!cell.e) return model + " · " + fmtSlotTs(cell.ts) + " · 无数据";
+  const st = STATUS_TEXT[cell.e.s] || cell.e.s;
+  let tip = `${model} · ${fmtSlotTs(cell.ts)} · ${st}`;
+  if (cell.e.ttfb != null) tip += " · 延迟 " + fmtMs(cell.e.ttfb);
+  if (cell.e.err) tip += " · " + cell.e.err;
+  return tip;
+}
+
+// 时间段 uptime: 基于 slots (24h/7d) 或按天聚合 (90d)
+function rangeUptime(data, model) {
+  if (currentRange === "90d") {
+    const days = data.history && data.history.days ? Object.keys(data.history.days).sort().slice(-90) : [];
+    let ok = 0, t = 0;
+    for (const dk of days) {
+      const e = (data.history.days[dk] || {})[model];
+      if (e && e.t) { ok += e.ok; t += e.t; }
+    }
+    return t ? ok / t : null;
   }
-  return out;
+  const cells = slotCells(data.slots || {}, model, currentRange === "24h" ? 288 : 2016);
+  let ok = 0, t = 0;
+  for (const c of cells) if (c.e && c.e.s) { t++; if (c.e.s !== "down") ok++; }
+  return t ? ok / t : null;
 }
 
 function render(data) {
@@ -267,6 +330,9 @@ function render(data) {
   openEl.textContent = openInc.length;
   openEl.className = "v " + (openInc.length ? "y" : "g");
 
+  // range hint
+  document.getElementById("range-hint").textContent = RANGE_INFO[currentRange];
+
   // group by vendor
   const groups = {};
   for (const v of VENDOR_MAP) groups[v.name] = [];
@@ -276,8 +342,9 @@ function render(data) {
     groups[vn].push([m, r]);
   }
   for (const k of Object.keys(groups)) if (!groups[k].length) delete groups[k];
-  // platform gateway first
   const order = ["平台网关", ...VENDOR_MAP.map(v => v.name).filter(n => groups[n])];
+
+  const hasSlots = data.slots && Object.keys(data.slots).length > 0;
 
   const container = document.getElementById("vendors");
   container.innerHTML = "";
@@ -302,34 +369,64 @@ function render(data) {
     body.className = "vendor-body";
 
     for (const [m, r] of rows) {
-      const bars = m === "@api" ? [] : modelBars(history, m);
       const info = catalog[m];
-      const row = document.createElement("div");
-      row.className = "mrow";
       const ctx = info && info.context_length ? (info.context_length / 1000) + "K" : "";
       const price = info && info.input_price != null ? `¥${info.input_price}/${info.output_price}` : "";
       const meta = m === "@api" ? "OpenAI 兼容端点" : [ctx, price].filter(Boolean).join(" · ");
-      const pct = (() => {
-        const valid = bars.filter(b => b.u != null);
-        if (!valid.length) return "–";
-        return (valid.reduce((a, b) => a + b.u, 0) / valid.length * 100).toFixed(1) + "%";
-      })();
-      const barsHtml = bars.length
-        ? `<div class="bars">${bars.map(b =>
-            `<div class="b ${barClass(b.u)}" title="${b.d} · 可用性 ${b.u == null ? "无数据" : (b.u * 100).toFixed(1) + "%" + (b.lat ? " · 延迟 " + fmtMs(b.lat) : "")}"></div>`).join("")}</div>`
-        : `<div class="bars"><div class="b ${r.status === "up" ? "" : r.status === "degraded" ? "partial" : "bad"}" title="今日"></div></div>`;
+
+      // cells: 24h/90d → flex 自适应; 7d → 固定宽滚动 (2016 格)
+      let cellsHtml;
+      const cellsWrap = currentRange === "7d" ? "cells scroll-cells" : "cells flex-cells";
+      if (currentRange === "90d") {
+        const days = history && history.days ? Object.keys(history.days).sort().slice(-90) : [];
+        const bars = [];
+        for (const dk of days) {
+          const e = (history.days[dk] || {})[m];
+          const u = e && e.t ? e.ok / e.t : null;
+          const cls = u == null ? "" : u >= 0.995 ? "up" : u >= 0.95 ? "degraded" : "down";
+          const tip = `${dk} · 可用性 ${u == null ? "无数据" : (u * 100).toFixed(1) + "%"}`;
+          bars.push(`<div class="cell ${cls}" title="${tip}"></div>`);
+        }
+        cellsHtml = `<div class="${cellsWrap}">${bars.join("") || '<div class="cell" title="无数据"></div>'}</div>`;
+      } else {
+        const maxCells = currentRange === "24h" ? 288 : 2016;
+        const cells = slotCells(data.slots || {}, m, maxCells);
+        const pads = currentRange === "24h" && cells.length < maxCells
+          ? `<div class="pad" title="等待数据"></div>`.repeat(maxCells - cells.length) : "";
+        const html = cells.map(c => `<div class="cell ${cellClass(c.e)}" title="${cellTip(c, m)}"></div>`).join("");
+        cellsHtml = `<div class="${cellsWrap}">${pads}${html}</div>`;
+      }
+
+      const up = rangeUptime(data, m);
+      const pctTxt = up == null ? "–" : (up * 100).toFixed(2) + "%";
+      const pctColor = up == null ? "var(--text-faint)" : up >= 0.995 ? "var(--green)" : up >= 0.95 ? "var(--yellow)" : "var(--red)";
+
+      const row = document.createElement("div");
+      row.className = "mrow";
       row.innerHTML = `
-        <span class="sdot ${r.status}"></span>
-        <span class="mname" title="${m}">${m === "@api" ? "API 网关" : m}</span>
-        <span class="meta">${meta}</span>
-        ${barsHtml}
-        <span class="pct" style="color:${r.status === "up" ? "var(--green)" : r.status === "degraded" ? "var(--yellow)" : "var(--red)"}">${pct}</span>
-        <span class="lat" title="最近探测首字延迟">${fmtMs(r.ttfb)}</span>`;
+        <div class="mrow-top">
+          <span class="sdot ${r.status}"></span>
+          <span class="mname" title="${m}">${m === "@api" ? "API 网关" : m}</span>
+          <span class="meta">${meta}</span>
+          <span class="spacer"></span>
+          <span class="lat" title="最近探测首字延迟">${fmtMs(r.ttfb)}</span>
+          <span class="pct" style="color:${pctColor}" title="所选时间段可用性">${pctTxt}</span>
+        </div>
+        ${cellsHtml}`;
       body.appendChild(row);
     }
     vEl.appendChild(head);
     vEl.appendChild(body);
     container.appendChild(vEl);
+  }
+
+  // 无 slot 数据提示 (24h/7d 且 KV 还没有 slot)
+  if (!hasSlots && currentRange !== "90d") {
+    const tip = document.createElement("div");
+    tip.style.cssText = "font-size:12px;color:var(--text-faint);padding:10px 18px;border-bottom:1px solid var(--border);";
+    tip.textContent = "⏳ 5 分钟粒度数据采集中，下一个探测周期开始填充（每 5 分钟一格）…";
+    if (container.firstChild) container.insertBefore(tip, container.firstChild);
+    else container.appendChild(tip);
   }
 
   // incidents
@@ -356,14 +453,28 @@ function render(data) {
 
 async function load() {
   try {
-    const res = await fetch("/api/status", { cache: "no-store" });
+    const res = await fetch("/api/status?range=" + currentRange, { cache: "no-store" });
     const data = await res.json();
+    cached = data;
     document.getElementById("loading").style.display = "none";
     render(data);
   } catch (e) {
     document.getElementById("banner-text").textContent = "数据加载失败，即将重试…";
   }
 }
+
+// range switch
+document.querySelectorAll(".range-switch button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".range-switch button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentRange = btn.dataset.range;
+    if (cached) render(cached); // 立即用缓存重绘, 后台再拉新数据
+    load();
+  });
+});
+document.querySelector('.range-switch button[data-range="24h"]').classList.add("active");
+
 load();
 setInterval(load, 30000);
 </script>

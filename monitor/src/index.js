@@ -158,6 +158,45 @@ function dayKey(ts) {
   return new Date(ts).toISOString().slice(0, 10);
 }
 
+// ---------- 5-minute slot history (KV key: slot:<YYYY-MM-DD>) ----------
+// Each cron run (every 5 min) writes one slot for that day. Slots kept SLOT_KEEP_DAYS
+// days (fine-grained); older data lives only in the day-aggregated `history` key.
+
+const SLOT_KEEP_DAYS = 7;
+
+function slotTs(now) {
+  const d = new Date(now);
+  const hm = String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0");
+  return { date: d.toISOString().slice(0, 10), hm };
+}
+
+async function updateSlots(kv, results, now) {
+  const { date, hm } = slotTs(now);
+  const key = "slot:" + date;
+  let slots = {};
+  try { slots = (await kv.get(key, "json")) || {}; } catch (_) {}
+  const entry = {};
+  for (const r of results) {
+    entry[r.model] = {
+      s: r.status,                        // up | degraded | down
+      ttfb: r.ttfb ?? null,
+      err: r.error ? String(r.error).slice(0, 80) : null,
+    };
+  }
+  slots[hm] = entry;
+  await kv.put(key, JSON.stringify(slots));
+}
+
+async function cleanupSlots(kv) {
+  try {
+    const cutoff = new Date(Date.now() - (SLOT_KEEP_DAYS + 1) * 86400 * 1000).toISOString().slice(0, 10);
+    const list = await kv.list({ prefix: "slot:" });
+    for (const k of list.keys) {
+      if (k.name.slice(5, 15) < cutoff) await kv.delete(k.name);
+    }
+  } catch (_) {}
+}
+
 async function updateHistory(kv, results, now) {
   let hist = { days: {} };
   try {
@@ -241,6 +280,8 @@ async function runProbe(env) {
   await env.tr_status.put("latest", JSON.stringify(summary));
   const historyResults = results.filter(r => r.model !== "@api");
   await updateHistory(env.tr_status, historyResults, now);
+  await updateSlots(env.tr_status, results, now);
+  await cleanupSlots(env.tr_status);
   await updateIncidents(env.tr_status, results, now);
   return summary;
 }
