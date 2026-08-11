@@ -1,0 +1,19 @@
+# Cloudflare wrangler 本地缓存
+.wrangler/
+.wrangler-*.json
+dev-shim.js
+
+# Node
+node_modules/
+*.log
+
+# 环境/密钥 (永不上传)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 系统
+.DS_Store
+Thumbs.db

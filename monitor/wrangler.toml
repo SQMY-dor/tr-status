@@ -1,0 +1,10 @@
+name = "tr-monitor"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[kv_namespaces]]
+binding = "tr_status"
+id = "25caa4a5b75f45d38b6949311f9f39cd"

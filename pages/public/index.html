@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>基元律动 Status — TokenRhythm</title>
+<meta name="description" content="基元律动 (tokenrhythm.studio) API 服务状态监控">
+<style>
+  :root {
+    --bg: #0a0b0e;
+    --bg-card: #111318;
+    --bg-hover: #161920;
+    --border: #1e222b;
+    --text: #e8eaed;
+    --text-dim: #9aa1ac;
+    --text-faint: #5c6370;
+    --green: #22c55e;
+    --green-dim: rgba(34,197,94,.15);
+    --yellow: #f59e0b;
+    --yellow-dim: rgba(245,158,11,.15);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,.15);
+    --gray: #3a3f4b;
+    --accent: #7c8cff;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, sans-serif;
+    line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+
+  header { padding: 28px 0 8px; }
+  .brand { display:flex; align-items:center; gap:12px; }
+  .brand .logo {
+    width:38px; height:38px; border-radius:10px;
+    background: linear-gradient(135deg, #7c8cff 0%, #b06cff 100%);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:17px; color:#fff; flex-shrink:0;
+  }
+  .brand h1 { font-size:19px; font-weight:700; letter-spacing:-.02em; }
+  .brand h1 span { color: var(--text-faint); font-weight:500; font-size:14px; margin-left:8px; }
+
+  .banner {
+    margin-top:20px; padding:15px 18px; border-radius:12px;
+    display:flex; align-items:center; gap:12px; font-size:15px; font-weight:600;
+    border:1px solid var(--border);
+  }
+  .banner .dot { width:11px; height:11px; border-radius:50%; flex-shrink:0; }
+  .banner.operational { background: var(--green-dim); color:#4ade80; border-color: rgba(34,197,94,.25); }
+  .banner.operational .dot { background:var(--green); box-shadow:0 0 10px rgba(34,197,94,.7); }
+  .banner.degraded_performance { background: var(--yellow-dim); color:#fbbf24; border-color: rgba(245,158,11,.25); }
+  .banner.degraded_performance .dot { background:var(--yellow); box-shadow:0 0 10px rgba(245,158,11,.7); }
+  .banner.partial_outage { background: var(--yellow-dim); color:#fbbf24; border-color: rgba(245,158,11,.25); }
+  .banner.partial_outage .dot { background:var(--yellow); box-shadow:0 0 10px rgba(245,158,11,.7); }
+  .banner.major_outage { background: var(--red-dim); color:#f87171; border-color: rgba(239,68,68,.25); }
+  .banner.major_outage .dot { background:var(--red); box-shadow:0 0 10px rgba(239,68,68,.7); animation:pulse 1.2s infinite; }
+  .banner .sub { font-weight:400; color:var(--text-dim); font-size:13px; margin-left:auto; }
+  @keyframes pulse { 50% { opacity:.4; } }
+
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:16px; }
+  .stat { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  .stat .v { font-size:22px; font-weight:700; letter-spacing:-.02em; }
+  .stat .l { font-size:12px; color:var(--text-dim); margin-top:2px; }
+  .stat .v.g { color:#4ade80; } .stat .v.y { color:#fbbf24; }
+
+  section { margin-top:28px; }
+  .sec-title { font-size:13px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; display:flex; justify-content:space-between; align-items:baseline; }
+  .sec-title .hint { font-weight:400; text-transform:none; letter-spacing:0; font-size:12px; color:var(--text-faint); }
+
+  .vendor { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; margin-bottom:14px; overflow:hidden; }
+  .vendor-head {
+    padding:13px 18px; display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none;
+  }
+  .vendor-head:hover { background: var(--bg-hover); }
+  .vendor-head .name { font-weight:650; font-size:14.5px; }
+  .vendor-head .cnt { font-size:12px; color:var(--text-faint); }
+  .vendor-head .vstat { margin-left:auto; font-size:12.5px; font-weight:600; display:flex; align-items:center; gap:7px; }
+  .vendor-head .vstat .d { width:8px; height:8px; border-radius:50%; }
+  .vendor-head .chev { color:var(--text-faint); font-size:11px; transition:transform .2s; }
+  .vendor.open .chev { transform:rotate(90deg); }
+  .vendor-body { display:none; border-top:1px solid var(--border); }
+  .vendor.open .vendor-body { display:block; }
+
+  .mrow { display:flex; align-items:center; gap:12px; padding:11px 18px; border-bottom:1px solid var(--border); }
+  .mrow:last-child { border-bottom:none; }
+  .mrow .mname { width:190px; font-size:13.5px; font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mrow .meta { font-size:11.5px; color:var(--text-faint); width:130px; flex-shrink:0; }
+  .mrow .bars { flex:1; display:flex; gap:2px; align-items:flex-end; height:26px; }
+  .mrow .bars .b { flex:1; min-width:2px; height:26px; border-radius:2px; background:var(--green); opacity:.85; transition:opacity .15s; cursor:default; }
+  .mrow .bars .b:hover { opacity:1; }
+  .mrow .bars .b.partial { background:var(--yellow); }
+  .mrow .bars .b.bad { background:var(--red); }
+  .mrow .bars .b.none { background:var(--gray); opacity:.5; }
+  .mrow .pct { width:56px; text-align:right; font-size:12.5px; font-weight:600; flex-shrink:0; }
+  .mrow .lat { width:72px; text-align:right; font-size:12px; color:var(--text-dim); flex-shrink:0; }
+  .mrow .sdot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .sdot.up { background:var(--green); } .sdot.degraded { background:var(--yellow); } .sdot.down { background:var(--red); animation:pulse 1.2s infinite; }
+
+  .st-badge { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; padding:3px 10px; border-radius:99px; }
+  .st-badge.up { background:var(--green-dim); color:#4ade80; }
+  .st-badge.degraded { background:var(--yellow-dim); color:#fbbf24; }
+  .st-badge.down { background:var(--red-dim); color:#f87171; }
+
+  .incident { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:14px 18px; margin-bottom:10px; }
+  .incident .it { display:flex; align-items:center; gap:10px; font-weight:600; font-size:14px; }
+  .incident .im { font-size:12.5px; color:var(--text-dim); margin-top:4px; }
+  .incident .im code { color:#f87171; font-family:ui-monospace,monospace; }
+  .no-inc { color:var(--text-faint); font-size:13.5px; background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:18px; text-align:center; }
+
+  footer { margin:36px 0 28px; color:var(--text-faint); font-size:12.5px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; border-top:1px solid var(--border); padding-top:18px; }
+  footer a { color:var(--text-dim); text-decoration:none; }
+  footer a:hover { color:var(--text); }
+  .live { display:inline-flex; align-items:center; gap:6px; }
+  .live .ld { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
+
+  #loading { text-align:center; padding:80px 0; color:var(--text-faint); }
+  @media (max-width:640px) {
+    .stats { grid-template-columns:repeat(2,1fr); }
+    .mrow .meta { display:none; }
+    .mrow .mname { width:140px; }
+    .mrow .lat { display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">
+      <div class="logo">律</div>
+      <h1>基元律动 Status<span>tokenrhythm.studio</span></h1>
+    </div>
+    <div class="banner operational" id="banner">
+      <div class="dot"></div>
+      <span id="banner-text">加载中…</span>
+      <span class="sub" id="checked-at"></span>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v g" id="st-models">–</div><div class="l">监控模型</div></div>
+      <div class="stat"><div class="v g" id="st-uptime">–</div><div class="l">今日平均可用性</div></div>
+      <div class="stat"><div class="v" id="st-latency">–</div><div class="l">当前平均首字延迟</div></div>
+      <div class="stat"><div class="v" id="st-open">–</div><div class="l">未解决事故</div></div>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-title">组件状态<span class="hint">90 天可用性 · 每 5 分钟探测 · 点按展开</span></div>
+    <div id="vendors"></div>
+  </section>
+
+  <section>
+    <div class="sec-title">最近事故<span class="hint">自动检测</span></div>
+    <div id="incidents"></div>
+  </section>
+
+  <footer>
+    <div>基元律动 · 服务状态监控 · 探测间隔 5 分钟</div>
+    <div class="live"><span class="ld"></span>自动刷新 30s · 数据更新 <span id="footer-time">–</span></div>
+  </footer>
+</div>
+
+<div id="loading">加载状态数据…</div>
+
+<script>
+const VENDOR_MAP = [
+  { name: "DeepSeek", prefix: "deepseek" },
+  { name: "GLM (智谱)", prefix: "glm" },
+  { name: "Kimi (月之暗面)", prefix: "kimi" },
+  { name: "MiniMax", prefix: "minimax" },
+  { name: "Qwen (通义)", prefix: "qwen" },
+  { name: "Seed (字节)", prefix: "seed" },
+  { name: "其他", prefix: null },
+];
+
+const OVERALL_TEXT = {
+  operational: "所有系统运行正常",
+  degraded_performance: "部分服务性能下降",
+  partial_outage: "部分服务中断",
+  major_outage: "重大服务中断",
+};
+const STATUS_TEXT = { up: "运行正常", degraded: "性能下降", down: "服务中断" };
+
+function fmtMs(ms) {
+  if (ms == null) return "–";
+  return ms >= 1000 ? (ms / 1000).toFixed(1) + "s" : Math.round(ms) + "ms";
+}
+function fmtTime(ts) {
+  const d = new Date(ts * 1000);
+  return d.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+function fmtDur(sec) {
+  const m = Math.floor(sec / 60);
+  if (m < 60) return m + " 分钟";
+  const h = Math.floor(m / 60);
+  return h + " 小时 " + (m % 60) + " 分";
+}
+
+function vendorOf(model) {
+  for (const v of VENDOR_MAP) {
+    if (v.prefix && model.startsWith(v.prefix)) return v.name;
+  }
+  return "其他";
+}
+
+function barClass(u) {
+  if (u == null) return "none";
+  if (u >= 0.995) return "";
+  if (u >= 0.95) return "partial";
+  return "bad";
+}
+function barColor(u) {
+  if (u == null) return "var(--gray)";
+  if (u >= 0.995) return "var(--green)";
+  if (u >= 0.95) return "var(--yellow)";
+  return "var(--red)";
+}
+
+function modelBars(history, model) {
+  // last 90 days, oldest first
+  const days = history && history.days ? Object.keys(history.days).sort() : [];
+  const last90 = days.slice(-90);
+  const out = [];
+  for (const dk of last90) {
+    const e = (history.days[dk] || {})[model];
+    if (!e || !e.t) { out.push({ d: dk, u: null, lat: null }); continue; }
+    out.push({ d: dk, u: e.ok / e.t, lat: e.t ? Math.round(e.lat / Math.max(e.ok, 1)) : null });
+  }
+  return out;
+}
+
+function render(data) {
+  const latest = data.latest, history = data.history, incidents = data.incidents, catalog = (data.catalog && data.catalog.models) || {};
+  if (!latest) { document.getElementById("banner-text").textContent = "暂无数据，等待首次探测…"; return; }
+
+  // banner
+  const banner = document.getElementById("banner");
+  banner.className = "banner " + latest.overall;
+  document.getElementById("banner-text").textContent = OVERALL_TEXT[latest.overall] || latest.overall;
+  document.getElementById("checked-at").textContent = "更新于 " + fmtTime(latest.checked_at);
+  document.getElementById("footer-time").textContent = fmtTime(latest.checked_at);
+
+  const models = Object.entries(latest.models);
+  const realModels = models.filter(([m]) => m !== "@api");
+  const upNow = realModels.filter(([, r]) => r.status === "up").length;
+
+  // today avg uptime
+  const today = new Date().toISOString().slice(0, 10);
+  const todayDay = history && history.days ? history.days[today] : null;
+  let totOk = 0, totT = 0, latSum = 0, latN = 0;
+  if (todayDay) {
+    for (const e of Object.values(todayDay)) {
+      totOk += e.ok; totT += e.t;
+      if (e.ok > 0) { latSum += e.lat / e.ok; latN++; }
+    }
+  }
+  const curLat = [];
+  for (const [, r] of realModels) if (r.ttfb != null) curLat.push(r.ttfb);
+  const avgCurLat = curLat.length ? Math.round(curLat.reduce((a, b) => a + b, 0) / curLat.length) : null;
+
+  const openInc = incidents && incidents.events ? incidents.events.filter(e => !e.resolved_at) : [];
+
+  document.getElementById("st-models").textContent = `${upNow}/${realModels.length}`;
+  document.getElementById("st-uptime").textContent = totT ? (totOk / totT * 100).toFixed(1) + "%" : "–";
+  document.getElementById("st-latency").textContent = fmtMs(avgCurLat);
+  const openEl = document.getElementById("st-open");
+  openEl.textContent = openInc.length;
+  openEl.className = "v " + (openInc.length ? "y" : "g");
+
+  // group by vendor
+  const groups = {};
+  for (const v of VENDOR_MAP) groups[v.name] = [];
+  for (const [m, r] of models) {
+    const vn = m === "@api" ? "平台网关" : vendorOf(m);
+    if (!groups[vn]) groups[vn] = [];
+    groups[vn].push([m, r]);
+  }
+  for (const k of Object.keys(groups)) if (!groups[k].length) delete groups[k];
+  // platform gateway first
+  const order = ["平台网关", ...VENDOR_MAP.map(v => v.name).filter(n => groups[n])];
+
+  const container = document.getElementById("vendors");
+  container.innerHTML = "";
+  for (const vn of order) {
+    if (!groups[vn] || !groups[vn].length) continue;
+    const rows = groups[vn];
+    const downs = rows.filter(([, r]) => r.status === "down").length;
+    const degraded = rows.filter(([, r]) => r.status === "degraded").length;
+    let vlabel, vcolor;
+    if (downs) { vlabel = `${downs} 个中断`; vcolor = "var(--red)"; }
+    else if (degraded) { vlabel = `${degraded} 个性能下降`; vcolor = "var(--yellow)"; }
+    else { vlabel = "全部正常"; vcolor = "var(--green)"; }
+
+    const vEl = document.createElement("div");
+    vEl.className = "vendor" + (downs || degraded ? " open" : "");
+    const head = document.createElement("div");
+    head.className = "vendor-head";
+    head.innerHTML = `<span class="chev">▶</span><span class="name">${vn}</span><span class="cnt">${rows.length} 个组件</span>
+      <span class="vstat"><span class="d" style="background:${vcolor}"></span><span style="color:${vcolor}">${vlabel}</span></span>`;
+    head.onclick = () => vEl.classList.toggle("open");
+    const body = document.createElement("div");
+    body.className = "vendor-body";
+
+    for (const [m, r] of rows) {
+      const bars = m === "@api" ? [] : modelBars(history, m);
+      const info = catalog[m];
+      const row = document.createElement("div");
+      row.className = "mrow";
+      const ctx = info && info.context_length ? (info.context_length / 1000) + "K" : "";
+      const price = info && info.input_price != null ? `¥${info.input_price}/${info.output_price}` : "";
+      const meta = m === "@api" ? "OpenAI 兼容端点" : [ctx, price].filter(Boolean).join(" · ");
+      const pct = (() => {
+        const valid = bars.filter(b => b.u != null);
+        if (!valid.length) return "–";
+        return (valid.reduce((a, b) => a + b.u, 0) / valid.length * 100).toFixed(1) + "%";
+      })();
+      const barsHtml = bars.length
+        ? `<div class="bars">${bars.map(b =>
+            `<div class="b ${barClass(b.u)}" title="${b.d} · 可用性 ${b.u == null ? "无数据" : (b.u * 100).toFixed(1) + "%" + (b.lat ? " · 延迟 " + fmtMs(b.lat) : "")}"></div>`).join("")}</div>`
+        : `<div class="bars"><div class="b ${r.status === "up" ? "" : r.status === "degraded" ? "partial" : "bad"}" title="今日"></div></div>`;
+      row.innerHTML = `
+        <span class="sdot ${r.status}"></span>
+        <span class="mname" title="${m}">${m === "@api" ? "API 网关" : m}</span>
+        <span class="meta">${meta}</span>
+        ${barsHtml}
+        <span class="pct" style="color:${r.status === "up" ? "var(--green)" : r.status === "degraded" ? "var(--yellow)" : "var(--red)"}">${pct}</span>
+        <span class="lat" title="最近探测首字延迟">${fmtMs(r.ttfb)}</span>`;
+      body.appendChild(row);
+    }
+    vEl.appendChild(head);
+    vEl.appendChild(body);
+    container.appendChild(vEl);
+  }
+
+  // incidents
+  const incBox = document.getElementById("incidents");
+  incBox.innerHTML = "";
+  const evs = incidents && incidents.events ? incidents.events.slice(0, 20) : [];
+  if (!evs.length) {
+    incBox.innerHTML = `<div class="no-inc">🎉 暂无事故记录</div>`;
+  } else {
+    for (const e of evs) {
+      const div = document.createElement("div");
+      div.className = "incident";
+      const state = e.resolved_at
+        ? `<span class="st-badge up">已恢复 · ${fmtTime(e.resolved_at)}</span>`
+        : `<span class="st-badge down">进行中</span>`;
+      const dur = e.resolved_at ? fmtDur(e.resolved_at - e.started_at) : fmtDur(Math.floor(Date.now() / 1000) - e.started_at);
+      div.innerHTML = `
+        <div class="it">${state}<span>${e.title}</span></div>
+        <div class="im">开始 ${fmtTime(e.started_at)} · 持续 ${dur}${e.detail ? " · <code>" + e.detail.replace(/</g, "&lt;") + "</code>" : ""}</div>`;
+      incBox.appendChild(div);
+    }
+  }
+}
+
+async function load() {
+  try {
+    const res = await fetch("/api/status", { cache: "no-store" });
+    const data = await res.json();
+    document.getElementById("loading").style.display = "none";
+    render(data);
+  } catch (e) {
+    document.getElementById("banner-text").textContent = "数据加载失败，即将重试…";
+  }
+}
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>
