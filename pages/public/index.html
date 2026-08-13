@@ -104,18 +104,19 @@
   .mrow-top .pct { font-size:13px; font-weight:700; flex-shrink:0; }
 
   /* 格子条: 5 分钟/格 */
-  .cells { display:flex; gap:1px; height:18px; overflow-x:auto; scrollbar-width:thin; scrollbar-color: var(--border) transparent; }
+  .cells { display:flex; gap:1px; height:22px; overflow-x:auto; scrollbar-width:thin; scrollbar-color: var(--border) transparent; }
   .cells::-webkit-scrollbar { height:5px; }
   .cells::-webkit-scrollbar-thumb { background:var(--border); border-radius:99px; }
-  .cell { flex-shrink:0; height:16px; border-radius:2px; background:var(--gray); opacity:.85; transition:opacity .15s; cursor:default; }
+  .cell { flex-shrink:0; height:20px; border-radius:2px; background:var(--gray); opacity:.85; transition:opacity .15s; cursor:default; }
   .cell:hover { opacity:1; }
   .cell.up { background:var(--green); }
   .cell.degraded { background:var(--yellow); }
   .cell.down { background:var(--red); }
 
-  /* 7 天视图: 固定宽滚动 (2016 格) */
-  .cells.scroll-cells .cell { width:3px; }
-  /* 24h / 90d 视图: 自适应填充 */
+  /* 24h / 7 天视图: 固定宽滚动 (DeepSeek 5px 格子, 更大更清晰) */
+  .cells.scroll-cells .cell { width:5px; flex:0 0 5px; }
+  .cells.scroll-cells .lead { margin-left:auto; flex:0 0 0; }
+  /* 90d 视图: 自适应填充 */
   .cells.flex-cells { overflow-x:hidden; }
   .cells.flex-cells .cell { flex:1 1 0; min-width:1px; width:auto; }
   /* 数据不足时左侧透明占位, 格子从右往左堆积 */
@@ -364,7 +365,14 @@ function render(data) {
     head.className = "vendor-head";
     head.innerHTML = `<span class="chev">▶</span><span class="name">${vn}</span><span class="cnt">${rows.length} 个组件</span>
       <span class="vstat"><span class="d" style="background:${vcolor}"></span><span style="color:${vcolor}">${vlabel}</span></span>`;
-    head.onclick = () => vEl.classList.toggle("open");
+    head.onclick = () => {
+      const willOpen = !vEl.classList.contains("open");
+      vEl.classList.toggle("open");
+      if (willOpen) {
+        // 展开后滚到最右，显示最新数据
+        vEl.querySelectorAll(".cells.scroll-cells").forEach(el => { el.scrollLeft = el.scrollWidth; });
+      }
+    };
     const body = document.createElement("div");
     body.className = "vendor-body";
 
@@ -374,9 +382,9 @@ function render(data) {
       const price = info && info.input_price != null ? `¥${info.input_price}/${info.output_price}` : "";
       const meta = m === "@api" ? "OpenAI 兼容端点" : [ctx, price].filter(Boolean).join(" · ");
 
-      // cells: 24h/90d → flex 自适应; 7d → 固定宽滚动 (2016 格)
+      // cells: 90d → flex 自适应; 24h/7d → 固定宽 5px 滚动 (DeepSeek 风格)
       let cellsHtml;
-      const cellsWrap = currentRange === "7d" ? "cells scroll-cells" : "cells flex-cells";
+      const cellsWrap = currentRange === "90d" ? "cells flex-cells" : "cells scroll-cells";
       if (currentRange === "90d") {
         const days = history && history.days ? Object.keys(history.days).sort().slice(-90) : [];
         const bars = [];
@@ -391,10 +399,9 @@ function render(data) {
       } else {
         const maxCells = currentRange === "24h" ? 288 : 2016;
         const cells = slotCells(data.slots || {}, m, maxCells);
-        const pads = currentRange === "24h" && cells.length < maxCells
-          ? `<div class="pad" title="等待数据"></div>`.repeat(maxCells - cells.length) : "";
+        const lead = cells.length < maxCells ? `<span class="lead"></span>` : "";
         const html = cells.map(c => `<div class="cell ${cellClass(c.e)}" title="${cellTip(c, m)}"></div>`).join("");
-        cellsHtml = `<div class="${cellsWrap}">${pads}${html}</div>`;
+        cellsHtml = `<div class="${cellsWrap}">${lead}${html}</div>`;
       }
 
       const up = rangeUptime(data, m);
@@ -449,6 +456,9 @@ function render(data) {
       incBox.appendChild(div);
     }
   }
+
+  // 滚动容器滚到最右 (最新数据在最右侧, DeepSeek 风格)
+  container.querySelectorAll(".cells.scroll-cells").forEach(el => { el.scrollLeft = el.scrollWidth; });
 }
 
 async function load() {
