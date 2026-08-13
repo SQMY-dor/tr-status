@@ -112,9 +112,14 @@
   .cell.degraded { background:var(--yellow); }
   .cell.down { background:var(--red); }
 
-  /* 24h / 7 天视图: 固定宽滚动 (DeepSeek 5px 格子, 更大更清晰) */
-  .cells.scroll-cells .cell { width:5px; flex:0 0 5px; }
+  /* 24h / 7 天视图: 单个 SVG 格子条 (DeepSeek 风格, 矢量渲染消除亚像素间距不均) */
   .cells.scroll-cells .lead { margin-left:auto; flex:0 0 0; }
+  .cells svg { display:block; flex-shrink:0; }
+  .cells svg rect { fill: var(--gray); opacity:.85; }
+  .cells svg rect:hover { opacity:1; }
+  .cells svg rect.up { fill: var(--green); }
+  .cells svg rect.degraded { fill: var(--yellow); }
+  .cells svg rect.down { fill: var(--red); }
   /* 90d 视图: 自适应填充 */
   .cells.flex-cells { overflow-x:hidden; }
   .cells.flex-cells .cell { flex:1 1 0; min-width:1px; width:auto; }
@@ -273,6 +278,21 @@ function cellTip(cell, model) {
   return tip;
 }
 
+// SVG 格子条 (DeepSeek 风格): 单个 SVG + 整数坐标 rect, 矢量缩放时间距精确均匀,
+// 避免 flex div + gap:1px 在高 DPI/浏览器缩放下被亚像素舍入导致的间距忽宽忽窄
+function cellsSvg(cells, model) {
+  if (!cells.length) return "";
+  const W = 5, H = 20, GAP = 1, R = 2;
+  const totalW = cells.length * (W + GAP) - GAP;
+  let rects = "";
+  cells.forEach((c, i) => {
+    const x = i * (W + GAP);
+    const tip = cellTip(c, model).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    rects += `<rect x="${x}" y="0" width="${W}" height="${H}" rx="${R}" class="${cellClass(c.e)}"><title>${tip}</title></rect>`;
+  });
+  return `<svg class="cells-svg" width="${totalW}" height="${H}" viewBox="0 0 ${totalW} ${H}">${rects}</svg>`;
+}
+
 // 时间段 uptime: 基于 slots (24h/7d) 或按天聚合 (90d)
 function rangeUptime(data, model) {
   if (currentRange === "90d") {
@@ -397,8 +417,7 @@ function render(data) {
         const maxCells = currentRange === "24h" ? 288 : 2016;
         const cells = slotCells(data.slots || {}, m, maxCells);
         const lead = cells.length < maxCells ? `<span class="lead"></span>` : "";
-        const html = cells.map(c => `<div class="cell ${cellClass(c.e)}" title="${cellTip(c, m)}"></div>`).join("");
-        cellsHtml = `<div class="${cellsWrap}">${lead}${html}</div>`;
+        cellsHtml = `<div class="${cellsWrap}">${lead}${cellsSvg(cells, m)}</div>`;
       }
 
       const up = rangeUptime(data, m);
