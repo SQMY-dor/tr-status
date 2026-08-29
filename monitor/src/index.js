@@ -343,7 +343,7 @@ async function runProbe(env) {
   const modelIds = Object.keys(catalog.models || {}).length
     ? Object.keys(catalog.models)
     : FALLBACK_MODELS;
-  const apiProbe = probeEndpoint(apiKey);
+  const apiProbe = await probeEndpoint(apiKey);
   const results = await probeAllModelIds(modelIds, apiKey);
   results.push(apiProbe);
   const now = Date.now();
