@@ -63,6 +63,7 @@
   .stat .v { font-size:22px; font-weight:700; letter-spacing:-.02em; }
   .stat .l { font-size:12px; color:var(--text-dim); margin-top:2px; }
   .stat .v.g { color:#4ade80; } .stat .v.y { color:#fbbf24; }
+  .stat .v span.g { color:#4ade80; } .stat .v span.y { color:#fbbf24; } .stat .v span.r { color:#f87171; }
 
   section { margin-top:28px; }
   .sec-title { font-size:13px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
@@ -161,7 +162,7 @@
       <span class="sub" id="checked-at"></span>
     </div>
     <div class="stats">
-      <div class="stat"><div class="v g" id="st-models">–</div><div class="l">可用/降级/监控</div></div>
+      <div class="stat"><div class="v" id="st-models"><span class="g">–</span>/<span class="y">–</span>/<span class="r">–</span></div><div class="l">可用/降级/不可用</div></div>
       <div class="stat"><div class="v g" id="st-uptime">–</div><div class="l">今日平均可用性</div></div>
       <div class="stat"><div class="v" id="st-latency">–</div><div class="l">当前平均首字延迟</div></div>
       <div class="stat"><div class="v" id="st-open">–</div><div class="l">未解决事故</div></div>
@@ -325,6 +326,7 @@ function render(data) {
   const realModels = models.filter(([m]) => m !== "@api");
   const upNow = realModels.filter(([, r]) => r.status === "up").length;
   const degNow = realModels.filter(([, r]) => r.status === "degraded").length;
+  const downNow = realModels.filter(([, r]) => r.status === "down").length;
 
   // today avg uptime
   const today = new Date().toISOString().slice(0, 10);
@@ -342,7 +344,8 @@ function render(data) {
 
   const openInc = incidents && incidents.events ? incidents.events.filter(e => !e.resolved_at) : [];
 
-  document.getElementById("st-models").textContent = `${upNow}/${degNow}/${realModels.length}`;
+  const modelsEl = document.getElementById("st-models");
+  modelsEl.innerHTML = `<span class="g">${upNow}</span>/<span class="y">${degNow}</span>/<span class="r">${downNow}</span>`;
   document.getElementById("st-uptime").textContent = totT ? (totOk / totT * 100).toFixed(1) + "%" : "–";
   document.getElementById("st-latency").textContent = fmtMs(avgCurLat);
   const openEl = document.getElementById("st-open");
