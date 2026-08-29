@@ -163,7 +163,7 @@
     </div>
     <div class="stats">
       <div class="stat"><div class="v" id="st-models"><span class="g">–</span>/<span class="y">–</span>/<span class="r">–</span></div><div class="l">可用/降级/不可用</div></div>
-      <div class="stat"><div class="v g" id="st-uptime">–</div><div class="l">最近24小时可用性</div></div>
+      <div class="stat"><div class="v g" id="st-uptime">–</div><div class="l">今日可用性</div></div>
       <div class="stat"><div class="v" id="st-latency">–</div><div class="l">当前平均首字延迟</div></div>
       <div class="stat"><div class="v" id="st-open">–</div><div class="l">未解决事故</div></div>
     </div>
@@ -328,16 +328,17 @@ function render(data) {
   const degNow = realModels.filter(([, r]) => r.status === "degraded").length;
   const downNow = realModels.filter(([, r]) => r.status === "down").length;
 
-  // 最近 24 小时可用性: 基于 slots 格子(5分钟粒度), 排除 @api
-  // 窗口终点 = 20分钟前(最近格子可能不完整/探测错开中), 起点 = 终点往前 24h
+  // 今日可用性: 基于 slots 格子(5分钟粒度, UTC存储), 排除 @api
+  // 窗口: 本地时区今天 00:00 起 → 20分钟前止 (最近格子可能不完整/探测错开中)
   const slotsData = data.slots || {};
   const endTs = Date.now() - 20 * 60 * 1000;
-  const cutoffTs = endTs - 24 * 3600 * 1000;
+  const nowD = new Date();
+  const dayStart = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate()).getTime(); // 本地今天 00:00
   let totOk = 0, totT = 0;
   for (const dk of Object.keys(slotsData).sort()) {
     for (const hm of Object.keys(slotsData[dk]).sort()) {
-      const ts = new Date(dk + "T" + hm + ":00").getTime();
-      if (!(ts >= cutoffTs && ts <= endTs)) continue;
+      const ts = Date.parse(dk + "T" + hm + ":00Z"); // UTC 解析, 与 slotCells 一致
+      if (!(ts >= dayStart && ts <= endTs)) continue;
       for (const [mn, e] of Object.entries(slotsData[dk][hm])) {
         if (mn === "@api") continue;
         if (!e || typeof e.s !== "string") continue;
