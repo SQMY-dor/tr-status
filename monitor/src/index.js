@@ -51,6 +51,8 @@ async function syncCatalog(env, apiKey) {
 const PROBE_TIMEOUT_MS = 45000;
 const DEGRADED_TTFB_MS = 10000;
 const HISTORY_DAYS = 90;
+// KV 写入经济模式：latest 仅在状态变化时重写，否则按心跳间隔刷新时间戳/TTFB
+const LATEST_HEARTBEAT_MS = 15 * 60 * 1000;
 
 // ---------- probe ----------
 
@@ -197,69 +199,142 @@ async function cleanupSlots(kv) {
   } catch (_) {}
 }
 
-async function updateHistory(kv, results, now) {
+// ---------- hourly history aggregation (KV key: history) ----------
+// 无状态方案：每小时首轮从 slot: 明细键重算「今天 + 昨天」的日级聚合后合并写回。
+// 数据源就是格子图 slot 键 → isolate 重启/内存丢失都不会产生数据漂移，
+// 也无需额外 meta 键。同时重算昨天是为了覆盖跨日边界（23:05 后的尾部样本）。
+// 写入：~24 次/天（原先 288 次/天）。
+
+async function rebuildDayFromSlots(kv, dk) {
+  const slots = (await kv.get("slot:" + dk, "json").catch(() => null)) || {};
+  const day = {};
+  for (const hm of Object.keys(slots)) {
+    for (const [model, e] of Object.entries(slots[hm])) {
+      if (model === "@api") continue; // API endpoint probe 不计入模型统计
+      const d = day[model] || { ok: 0, t: 0, lat: 0, mn: null, mx: null };
+      d.t += 1;
+      if (e.s !== "down") {
+        d.ok += 1;
+        if (e.ttfb != null) {
+          d.lat += e.ttfb;
+          d.mn = d.mn == null ? e.ttfb : Math.min(d.mn, e.ttfb);
+          d.mx = d.mx == null ? e.ttfb : Math.max(d.mx, e.ttfb);
+        }
+      }
+      day[model] = d;
+    }
+  }
+  return day;
+}
+
+async function flushHistory(kv, now) {
   let hist = { days: {} };
   try {
     const raw = await kv.get("history", "json");
     if (raw && raw.days) hist = raw;
   } catch (_) {}
 
-  const dk = dayKey(now);
-  const day = hist.days[dk] || {};
-  for (const r of results) {
-    const e = day[r.model] || { ok: 0, t: 0, lat: 0, mn: null, mx: null };
-    e.t += 1;
-    if (r.status !== "down") {
-      e.ok += 1;
-      const lat = r.ttfb ?? r.total;
-      if (lat != null) {
-        e.lat += lat;
-        e.mn = e.mn == null ? lat : Math.min(e.mn, lat);
-        e.mx = e.mx == null ? lat : Math.max(e.mx, lat);
-      }
-    }
-    day[r.model] = e;
-  }
-  hist.days[dk] = day;
+  // 幂等闸门：本小时内已 flush 过则跳过（重复调用零写入）
+  const hourBucket = Math.floor(now / (3600 * 1000));
+  if ((hist._last_hour_bucket ?? 0) >= hourBucket) return false;
+
+  // 重算今天 + 昨天（昨天的尾部样本只在次日凌晨的 flush 中补齐）
+  hist.days[dayKey(now)] = await rebuildDayFromSlots(kv, dayKey(now));
+  hist.days[dayKey(now - 86400 * 1000)] = await rebuildDayFromSlots(kv, dayKey(now - 86400 * 1000));
 
   // prune old days
   const cutoff = dayKey(now - HISTORY_DAYS * 86400 * 1000);
   for (const k of Object.keys(hist.days)) if (k < cutoff) delete hist.days[k];
   hist.updated_at = Math.floor(now / 1000);
+  hist._last_hour_bucket = hourBucket;
+
   await kv.put("history", JSON.stringify(hist));
+  // slot 清理也挂到每小时 flush 里（原先是每轮执行）
+  await cleanupSlots(kv);
+  return true;
 }
 
-async function updateIncidents(kv, results, now) {
-  let state = {};
-  try { state = (await kv.get("state", "json")) || {}; } catch (_) {}
+// ---------- incidents（事件驱动写入）----------
+// 上游状态对比源：KV 里的 latest.models[*].status（取代旧的独立 state 键）。
+// 只有 up/degraded ↔ down 翻转时才写 incidents；稳定期该键零写入。
+// 返回值：本次是否发生了写入。
+
+async function updateIncidents(kv, results, now, prevState) {
+  const ts = Math.floor(now / 1000);
+
   let inc = { events: [] };
   try { inc = (await kv.get("incidents", "json")) || { events: [] }; } catch (_) {}
+  if (!inc.events) inc.events = [];
 
-  const ts = Math.floor(now / 1000);
-  const newState = {};
+  let changed = false;
   for (const r of results) {
-    const prev = state[r.model];
-    newState[r.model] = { status: r.status, since: prev && prev.status === r.status ? prev.since : ts, last_error: r.error || null };
-
+    const prev = prevState[r.model];
     if (prev && prev.status !== "down" && r.status === "down") {
       // open incident
       inc.events.unshift({
         id: r.model + "-" + ts, model: r.model, started_at: ts, resolved_at: null,
         title: r.model + " 服务中断", detail: r.error || "unknown error",
       });
+      changed = true;
     } else if (prev && prev.status === "down" && r.status !== "down") {
       // resolve the newest open incident for this model
       const open = inc.events.find(e => e.model === r.model && e.resolved_at === null);
-      if (open) open.resolved_at = ts;
+      if (open) { open.resolved_at = ts; changed = true; }
+    } else if (!prev && r.status === "down") {
+      // 首次观测即 down（如刚上线/数据被清），也开单，避免漏报长故障
+      inc.events.unshift({
+        id: r.model + "-" + ts, model: r.model, started_at: ts, resolved_at: null,
+        title: r.model + " 服务中断", detail: r.error || "unknown error",
+      });
+      changed = true;
     }
   }
+
+  if (!changed) return false; // 无事件 → 零写入
   inc.events = inc.events.slice(0, 100);
-  await kv.put("state", JSON.stringify(newState));
   await kv.put("incidents", JSON.stringify(inc));
-  return newState;
+  return true;
 }
 
 // ---------- entry ----------
+
+// 状态签名：所有模型（含 @api）的状态序列化。签名相同 ⇒ 前端展示无任何变化，
+// 无需重写 latest。TTFB 数值变化不触发写入，由心跳机制兜底刷新。
+function statusSignature(summary) {
+  return JSON.stringify(
+    Object.keys(summary.models).sort().map(m => [m, summary.models[m].status])
+  );
+}
+
+// ---------- 受限并发探测 ----------
+// 22 个模型瞬时并发会触发上游风控(403 冻结)。改为:
+//   - 最多 MAX_PROBE_CONCURRENCY 个并发
+//   - 每个请求前随机等待 0 ~ PROBE_JITTER_MAX_MS
+// 让 22 个请求在 5 分钟窗口内随机错开, 既保格子图精度又不触发风控。
+const MAX_PROBE_CONCURRENCY = 3;
+const PROBE_JITTER_MAX_MS = 20000;
+
+function jitterDelay() {
+  return new Promise((resolve) => setTimeout(resolve, Math.random() * PROBE_JITTER_MAX_MS));
+}
+
+async function probeAllModelIds(modelIds, apiKey) {
+  const results = [];
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < modelIds.length) {
+      const m = modelIds[cursor++];
+      await jitterDelay(); // 随机错开, 避免同时打上游
+      try {
+        results.push(await probeModel(m, apiKey));
+      } catch (e) {
+        results.push({ model: m, status: "down", http: 0, ttfb: null, total: 0, error: "probe crashed: " + String(e.message || e).slice(0, 120), error_kind: "probe_error", checked_at: Math.floor(Date.now() / 1000) });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(MAX_PROBE_CONCURRENCY, modelIds.length) }, worker));
+  return results;
+}
 
 async function runProbe(env) {
   const apiKey = env.TR_API_KEY;
@@ -269,7 +344,8 @@ async function runProbe(env) {
     ? Object.keys(catalog.models)
     : FALLBACK_MODELS;
   const apiProbe = probeEndpoint(apiKey);
-  const results = await Promise.all([...modelIds.map(m => probeModel(m, apiKey)), apiProbe]);
+  const results = await probeAllModelIds(modelIds, apiKey);
+  results.push(apiProbe);
   const now = Date.now();
   const summary = {
     checked_at: Math.floor(now / 1000),
@@ -277,12 +353,36 @@ async function runProbe(env) {
     model_count: modelIds.length,
     models: Object.fromEntries(results.map(r => [r.model, r])),
   };
-  await env.tr_status.put("latest", JSON.stringify(summary));
-  const historyResults = results.filter(r => r.model !== "@api");
-  await updateHistory(env.tr_status, historyResults, now);
+
+  // --- KV 写入经济模式 ---
+  // 每轮固定写：slot:<date>（格子图，不可省）。
+  // 条件写：latest（状态签名变化 或 超过15min心跳）、history+slot清理(每小时首轮)、
+  //         incidents(仅 up/down 翻转事件)。
+  // 稳定无故障时每轮写入 ≈1 次，全天 ~350 次 vs 原 1440 次。
+  const oldLatest = await env.tr_status.get("latest", "json").catch(() => null);
+
+  const newSig = statusSignature(summary);
+  const oldSig = oldLatest ? statusSignature(oldLatest) : null;
+  const sigChanged = !oldLatest || newSig !== oldSig;
+  const stale = !oldLatest || now - (oldLatest.checked_at || 0) * 1000 >= LATEST_HEARTBEAT_MS;
+
+  // 先落格子（串行），保证随后的整点 flush 读到的 slot 数据包含本轮样本
   await updateSlots(env.tr_status, results, now);
-  await cleanupSlots(env.tr_status);
-  await updateIncidents(env.tr_status, results, now);
+
+  const jobs = [
+    updateIncidents(
+      env.tr_status, results, now,
+      Object.fromEntries(Object.entries(oldLatest?.models || {}).map(([m, r]) => [m, { status: r.status }]))
+    ),
+  ];
+  if (sigChanged || stale) {
+    jobs.push(env.tr_status.put("latest", JSON.stringify(summary)));
+  }
+  // history flush 每轮都调用：内部有 hourBucket 幂等闸门，非整点首轮零写入，
+  // 整点后首轮自动重算并落盘（含 slot 清理）。代价仅是每小时多一次 history 读。
+  jobs.push(flushHistory(env.tr_status, now));
+
+  await Promise.all(jobs);
   return summary;
 }
 
